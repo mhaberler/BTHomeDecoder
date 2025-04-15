@@ -33,23 +33,13 @@ NimBLEAddress esp("48:ca:43:39:32:a5", BLE_ADDR_PUBLIC);
 static volatile bool newReadingReady = false;
 
 BLEScan *scan;
+const char *key = ""; // "431d39c1d7cc1ac1aef224cd096db934"
 
 class scanCallbacks : public NimBLEScanCallbacks {
 
-    std::string convertServiceData(std::string deviceServiceData) {
-        int len = (int)deviceServiceData.length();
-        char buf[2*len + 1];
-        for (int i=0; i<len; i++) {
-            sprintf(buf + 2*i, "%02x", (uint8_t)deviceServiceData[i]);
-        }
-        buf[2*len] = 0;
-        return std::string(buf);
-    }
-
     void onResult(const BLEAdvertisedDevice* advertisedDevice)  {
 
-        if (advertisedDevice->getAddress() != esp) return;
-
+        // if (advertisedDevice->getAddress() != esp) return;
 
         // If no service data, skip
         if (!advertisedDevice->haveServiceData()) return;
@@ -64,14 +54,14 @@ class scanCallbacks : public NimBLEScanCallbacks {
 
             // Convert to vector
             std::string rawData = advertisedDevice->getServiceData(j);
-            std::vector<uint8_t> dataVec(rawData.begin(), rawData.end());
-            log_v("--- dataVec=%s",  NimBLEUtils::dataToHexString(dataVec.data(), dataVec.size()).c_str());
+            // std::vector<uint8_t> dataVec(rawData.begin(), rawData.end());
+            // log_v("--- dataVec=%s",  NimBLEUtils::dataToHexString(dataVec.data(), dataVec.size()).c_str());
 
             // Decode
             BTHomeDecodeResult bthRes = bthDecoder.parseBTHomeV2(
-                                            dataVec,
+                advertisedDevice->getServiceData(j),
                                             advertisedDevice->getAddress().toString().c_str(),
-                                            "" // no encryption
+                                            key
                                         );
 
             if (bthRes.isBTHome && bthRes.decryptionSucceeded) {
@@ -90,16 +80,17 @@ class scanCallbacks : public NimBLEScanCallbacks {
                 // WARNING: getName() memory might go away after callback,
                 // so store it in a local String now
                 String devName;
-                if (advertisedDevice->haveName()) {
-                    devName = advertisedDevice->getName().c_str();
-                } else {
-                    devName = "NoName";
-                }
+
+                // for some reason this crashes
+                // if (advertisedDevice->haveName()) {
+                //     devName = advertisedDevice->getName().c_str();
+                // } else {
+                //     devName = "NoName";
+                // }
                 latestReading.devName = devName;
 
                 // Copy other fields
                 latestReading.rssi = advertisedDevice->getRSSI();
-                // latestReading.rssi = (advertisedDevice->haveRSSI() ? advertisedDevice->getRSSI() : 0);
 
                 // 2) Build the JSON doc in the global struct
                 //    (No more printing here, do it in loop())
@@ -139,7 +130,7 @@ void setup() {
     NimBLEDevice::init("");
     scan = NimBLEDevice::getScan();
     scan->setScanCallbacks(&scanCallbacks, false);
-    scan->setActiveScan(true);
+    scan->setActiveScan(false);
     scan->setInterval(BLEScanInterval);
     scan->setWindow(BLEScanWindow);
     scan->setDuplicateFilter(false);
@@ -150,17 +141,10 @@ void setup() {
 }
 
 void loop() {
-    // // Start scanning if not already
-    // NimBLEScan* scan = NimBLEDevice::getScan();
-    // if(!scan->isScanning()) {
-    //     log_i("restart scan");
-    //     scan->start(Scan_duration, false, true);
-    // }
-
     // Check if new reading is ready
     if(newReadingReady) {
         // Turn off scanning while we handle print, to avoid interruption
-        // scan->stop();
+        scan->stop();
 
         Serial.println("===== BTHome Advertisement Decoded =====");
         serializeJsonPretty(latestReading.doc, Serial);
@@ -171,7 +155,7 @@ void loop() {
         latestReading.valid = false;
 
         // Resume scanning
-        // scan->start(Scan_duration, false, true);
+        scan->start(Scan_duration, false, true);
     }
 
     delay(500);
