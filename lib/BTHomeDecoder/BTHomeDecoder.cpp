@@ -132,10 +132,13 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
             break;
         uint8_t objID = payload[idx];
         idx++; // skip over objId
-        if (hasLengthByte(objID)) { // skip over length byte
+        if (hasLengthByte(objID))
+        { // skip over length byte
             dataLen = payload[idx];
             idx++;
-        }  else {
+        }
+        else
+        {
             dataLen = getObjectDataLength(objID);
         }
         log_v("DEBUG: objectID=0x%02X dataLen=%d", objID, dataLen);
@@ -314,6 +317,8 @@ int BTHomeDecoder::getObjectDataLength(uint8_t objID)
         return 1;
     case 0x3A: // button
         return 1;
+    case 0x00: // packet id
+        return 1;
     default:
         return -1;
     }
@@ -391,6 +396,8 @@ String BTHomeDecoder::getObjectName(uint8_t objID)
 {
     switch (objID)
     {
+    case 0x00:
+        return "packet_id";
     case 0x02:
         return "temperature";
     case 0x03:
