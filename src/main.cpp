@@ -1,10 +1,17 @@
 #include <Arduino.h>
-#include "NimBLEDevice.h"//https://github.com/h2zero/NimBLE-Arduino.git#1.3.1
-#include "ArduinoJson.h"//ArduinoJson@6.18.3
+#include "NimBLEDevice.h"
+#include "NimBLEUtils.h"
+#include "ArduinoJson.h"
 #include "BTHomeDecoder.h"
 
 #ifndef Scan_duration
     #define Scan_duration 1000*5 //define the duration for a scan; in milliseconds
+#endif
+#ifndef BLEScanInterval
+    #define BLEScanInterval 52 // How often the scan occurs / switches channels; in milliseconds,
+#endif
+#ifndef BLEScanWindow
+    #define BLEScanWindow 30 // How long to scan during the interval; in milliseconds.
 #endif
 
 static BTHomeDecoder bthDecoder;
@@ -20,11 +27,14 @@ struct BTHomeReading {
 };
 
 static BTHomeReading latestReading;
+NimBLEAddress esp("48:ca:43:39:32:a5", BLE_ADDR_PUBLIC);
 
 // Create a global flag to indicate new reading is ready
 static volatile bool newReadingReady = false;
 
-class MyAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
+BLEScan *scan;
+
+class scanCallbacks : public NimBLEScanCallbacks {
 
     std::string convertServiceData(std::string deviceServiceData) {
         int len = (int)deviceServiceData.length();
@@ -36,7 +46,11 @@ class MyAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
         return std::string(buf);
     }
 
-    void onResult(BLEAdvertisedDevice* advertisedDevice)  {
+    void onResult(const BLEAdvertisedDevice* advertisedDevice)  {
+
+        if (advertisedDevice->getAddress() != esp) return;
+
+
         // If no service data, skip
         if (!advertisedDevice->haveServiceData()) return;
 
@@ -51,6 +65,7 @@ class MyAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
             // Convert to vector
             std::string rawData = advertisedDevice->getServiceData(j);
             std::vector<uint8_t> dataVec(rawData.begin(), rawData.end());
+            log_v("--- dataVec=%s",  NimBLEUtils::dataToHexString(dataVec.data(), dataVec.size()).c_str());
 
             // Decode
             BTHomeDecodeResult bthRes = bthDecoder.parseBTHomeV2(
@@ -114,7 +129,7 @@ class MyAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
     }
 
     void onScanEnd(const NimBLEScanResults &results, int reason) override {
-        log_i("Scan ended reason = %d; restarting scan", reason);
+        log_v("Scan ended reason = %d; restarting scan", reason);
         NimBLEDevice::getScan()->start(Scan_duration, false, true);
     }
 } scanCallbacks;
@@ -122,14 +137,16 @@ class MyAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
 void setup() {
     Serial.begin(115200);
     NimBLEDevice::init("");
-    NimBLEScan* scan = NimBLEDevice::getScan();
+    scan = NimBLEDevice::getScan();
     scan->setScanCallbacks(&scanCallbacks, false);
-    // scan->setActiveScan(true);
-    scan->setActiveScan(false);
-    scan->setInterval(97);
-    scan->setWindow(37);
+    scan->setActiveScan(true);
+    scan->setInterval(BLEScanInterval);
+    scan->setWindow(BLEScanWindow);
+    scan->setDuplicateFilter(false);
+
     scan->setMaxResults(0);
     scan->start(Scan_duration, false, true);
+    log_i("BLE scan started");
 }
 
 void loop() {
@@ -143,7 +160,7 @@ void loop() {
     // Check if new reading is ready
     if(newReadingReady) {
         // Turn off scanning while we handle print, to avoid interruption
-        NimBLEDevice::getScan()->stop();
+        // scan->stop();
 
         Serial.println("===== BTHome Advertisement Decoded =====");
         serializeJsonPretty(latestReading.doc, Serial);
@@ -154,7 +171,7 @@ void loop() {
         latestReading.valid = false;
 
         // Resume scanning
-        NimBLEDevice::getScan()->start(Scan_duration, false, true);
+        // scan->start(Scan_duration, false, true);
     }
 
     delay(500);

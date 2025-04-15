@@ -1,4 +1,5 @@
 #include "BTHomeDecoder.h"
+#include "NimBLEUtils.h"
 
 // ----------------------------
 //  parseBTHomeV2
@@ -37,13 +38,14 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
     }
 
     // Skip over advInfo + MAC if present
-    size_t index = 1;
-    if (hasMac) {
-        if (serviceData.size() < 7) {
-            return result; // not enough data
-        }
-        index += 6; // skip the "reversed MAC"
-    }
+    // size_t index = 1;
+    size_t index = 0;
+    // if (hasMac) {
+    //     if (serviceData.size() < 7) {
+    //         return result; // not enough data
+    //     }
+    //     index += 6; // skip the "reversed MAC"
+    // }
 
     if (index >= serviceData.size()) {
         return result;
@@ -51,6 +53,9 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
 
     // The remainder is payload
     std::vector<uint8_t> payload(serviceData.begin() + index, serviceData.end());
+
+    std::string hp = NimBLEUtils::dataToHexString(payload.data(), payload.size());
+    log_d("DEBUG: mac=%s payload=%s", macString.c_str(), hp.c_str());
 
     // If encrypted, decrypt
     if (encryptionFlag) {
@@ -106,26 +111,26 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
     // Parse objects
     size_t idx = 0;
     while (idx < payload.size()) {
-        //Serial.printf("DEBUG: idx=%d, payload.size()=%d\n", idx, payload.size());
-        if (idx + 1 > payload.size()) break;    
+        log_v("DEBUG: idx=%d, payload.size()=%d", idx, payload.size());
+        if (idx + 1 > payload.size()) break;
         uint8_t objID = payload[idx];
         idx++;
-    
-        //Serial.printf("DEBUG: Found objectID=0x%02X\n", objID);
-    
+
+        log_v("DEBUG: Found objectID=0x%02X", objID);
+
         int dataLen = getObjectDataLength(objID);
-        //Serial.printf("DEBUG: dataLen=%d\n", dataLen);
+        log_v("DEBUG: dataLen=%d", dataLen);
         if (dataLen < 0) {
-            //Serial.println("DEBUG: Unknown objectID => stopping parse");
+            log_v("DEBUG: Unknown objectID => stopping parse");
             break;
         }
         if (idx + dataLen > payload.size()) {
-            //Serial.println("DEBUG: Not enough bytes => stopping parse");
+            log_v("DEBUG: Not enough bytes => stopping parse");
             break;
         }
-    
+
         float factor = getObjectFactor(objID);
-        bool isSigned = false; 
+        bool isSigned = false;
         // if (objID == 0x02) isSigned = true; // example
         float val = 0.0f;
         if (isSigned) {
@@ -133,17 +138,17 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
         } else {
             val = parseUnsignedLittle(&payload[idx], dataLen, factor);
         }
-    
-        //Serial.printf("DEBUG: objID=0x%02X => val=%.2f, factor=%.3f\n", objID, val, factor);
-    
+
+        log_v("DEBUG: objID=0x%02X => val=%.2f, factor=%.3f", objID, val, factor);
+
         BTHomeMeasurement meas;
         meas.objectID = objID;
         meas.value = val;
         meas.name = getObjectName(objID);
         meas.isValid = true;
-    
+
         result.measurements.push_back(meas);
-    
+
         idx += dataLen;
     }
 
@@ -268,19 +273,19 @@ float BTHomeDecoder::getObjectFactor(uint8_t objID) {
         case 0x5C:
             return 0.01f;
 
-        case 0x2E: 
+        case 0x2E:
         // If you stored humidity as a single byte (0-100),
         // factor = 1.0 => final value = raw (like 55 => 55%)
-        return 1.0f; 
+        return 1.0f;
 
         case 0x05:
             // Illuminance is 3 bytes * factor 0.01 => e.g. raw = 12345 => 123.45 lux
             // or pick a different factor if your device uses another scale.
-            return 0.01f; 
+            return 0.01f;
 
         case 0x0C:
             // Battery voltage is 2 bytes in millivolts => factor = 0.001 => 3241 => 3.241 V
-            return 0.001f; 
+            return 0.001f;
 
         case 0x2F:
             // Soil moisture is 1 byte, 0..100 => factor = 1 => raw 47 => 47%
