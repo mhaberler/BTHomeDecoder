@@ -111,6 +111,7 @@ class scanCallbacks : public NimBLEScanCallbacks {
                     obj["object_id"] = m.objectID;
                     obj["name"]      = m.name;
                     obj["value"]     = m.value;
+                    obj["unit"]      = m.unit;
                 }
 
                 // Set the flag

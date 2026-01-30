@@ -154,7 +154,7 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
         }
 
         float factor = getObjectFactor(objID);
-        bool isSigned = false;
+        bool isSigned = getObjectSignedNess(objID);
         // if (objID == 0x02) isSigned = true; // example
         float val = 0.0f;
         if (isSigned)
@@ -172,6 +172,7 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
         meas.objectID = objID;
         meas.value = val;
         meas.name = getObjectName(objID);
+        meas.unit = getObjectUnit(objID);
         meas.isValid = true;
 
         result.measurements.push_back(meas);
@@ -314,6 +315,20 @@ int BTHomeDecoder::getObjectDataLength(uint8_t objID)
     case 0x5B:
     case 0x5C:
         return 4;
+    case 0x5D: // current (sint16)
+    case 0x61: // rotational speed
+        return 2;
+    case 0x60: // channel
+        return 1;
+    case 0x62: // speed (signed)
+    case 0x63: // acceleration (signed)
+        return 4;
+    case 0xF0: // device type id
+        return 2;
+    case 0xF1: // firmware version (uint32)
+        return 4;
+    case 0xF2: // firmware version (uint24)
+        return 3;
     default:
         return -1;
     }
@@ -323,67 +338,147 @@ float BTHomeDecoder::getObjectFactor(uint8_t objID)
 {
     switch (objID)
     {
+    case 0x01:
+        // Battery % is 1 byte, 0..100 => factor = 1 => raw 98 => 98%
+        return 1.0f;
     case 0x02:
     case 0x03:
     case 0x08:
     case 0x14:
-    case 0x5E:
         return 0.01f;
     case 0x04:
     case 0x0B:
         return 0.01f;
+    case 0x05:
+        // Illuminance is 3 bytes * factor 0.01 => e.g. raw = 12345 => 123.45 lux
+        // or pick a different factor if your device uses another scale.
+        return 0.01f;
     case 0x0A:
+    case 0x0C:
+        // Battery voltage is 2 bytes in millivolts => factor = 0.001 => 3241 => 3.241 V
         return 0.001f;
+    case 0x2E:
+        // If you stored humidity as a single byte (0-100),
+        // factor = 1.0 => final value = raw (like 55 => 55%)
+        return 1.0f;
+    case 0x2F:
+        // Soil moisture is 1 byte, 0..100 => factor = 1 => raw 47 => 47%
+        return 1.0f;
     case 0x3F:
+    case 0x5F: // precipitation
+        return 0.1f;
+    case 0x45:
+    case 0x46:
+    case 0x47:
+    case 0x4A:
+    case 0x41: // distance (m)
         return 0.1f;
     case 0x42:
-        return 0.001f;
     case 0x43:
-    case 0x51:
-    case 0x52:
-        return 0.001f;
-    case 0x44:
-        return 0.01f;
-    case 0x45:
-        return 0.1f;
-    case 0x46:
-        return 0.1f;
-    case 0x47:
-        return 0.1f;
-    case 0x4A:
-        return 0.1f;
     case 0x4B:
     case 0x4C:
     case 0x4D:
     case 0x4E:
     case 0x4F:
+    case 0x51:
+    case 0x52:
+    case 0x5D: // current (sint16)
         return 0.001f;
+    case 0x44:
     case 0x5C:
+    case 0x5E:
         return 0.01f;
-
-    case 0x2E:
-        // If you stored humidity as a single byte (0-100),
-        // factor = 1.0 => final value = raw (like 55 => 55%)
-        return 1.0f;
-
-    case 0x05:
-        // Illuminance is 3 bytes * factor 0.01 => e.g. raw = 12345 => 123.45 lux
-        // or pick a different factor if your device uses another scale.
-        return 0.01f;
-
-    case 0x0C:
-        // Battery voltage is 2 bytes in millivolts => factor = 0.001 => 3241 => 3.241 V
-        return 0.001f;
-
-    case 0x2F:
-        // Soil moisture is 1 byte, 0..100 => factor = 1 => raw 47 => 47%
-        return 1.0f;
-
-    case 0x01:
-        // Battery % is 1 byte, 0..100 => factor = 1 => raw 98 => 98%
-        return 1.0f;
+    case 0x62: // speed (signed)
+    case 0x63: // acceleration (signed)
+        return 0.000001f;
     default:
         return 1.0f;
+    }
+}
+
+bool BTHomeDecoder::getObjectSignedNess(uint8_t objID)
+{
+    switch (objID)
+    {
+    case 0x02: // temperature
+    case 0x08: // dewpoint
+    case 0x3F: // rotation
+    case 0x45: // temperature
+    case 0x62: // speed (signed)
+    case 0x63: // acceleration (signed)
+        return true;
+    default:
+        return false;
+    }
+}
+
+String BTHomeDecoder::getObjectUnit(uint8_t objID)
+{
+    switch (objID)
+    {
+    case 0x01: // battery
+    case 0x03: // humidity
+    case 0x14: // moisture
+    case 0x2E: // humidity
+    case 0x2F: // moisture
+        return "percent";
+    case 0x02: // temperature
+    case 0x08: // dewpoint
+    case 0x45: // temperature
+        return "°C";
+    case 0x04: // pressure
+        return "hPa";
+    case 0x05: // illuminance
+        return "lux";
+    case 0x06: // mass (kg)
+        return "kg";
+    case 0x07: // mass (lb)
+        return "lb";
+    case 0x0A: // energy
+    case 0x4D: // energy
+        return "kWh";
+    case 0x0B: // power
+        return "W";
+    case 0x0C: // voltage
+    case 0x4A: // voltage
+        return "V";
+    case 0x0D: // pm2.5
+    case 0x0E: // pm10
+    case 0x13: // tvoc
+        return "ug/m3";
+    case 0x12: // co2
+        return "ppm";
+    case 0x3F: // rotation
+        return "°";
+    case 0x40: // distance (mm)
+        return "mm";
+    case 0x41: // distance (m)
+        return "m";
+    case 0x42: // duration
+        return "s";
+    case 0x43: // current
+        return "A";
+    case 0x44: // speed
+    case 0x62: // speed
+        return "m/s";
+    case 0x47: // volume
+    case 0x4E: // volume
+    case 0x4F: // water
+        return "L";
+    case 0x48: // volume
+        return "mL";
+    case 0x49: // volume Flow Rate
+        return "m3/hr";
+    case 0x4B: // gas
+    case 0x4C: // gas
+        return "m3";
+    case 0x51: // acceleration
+    case 0x63: // acceleration
+        return "m/s²";
+    case 0x52: // gyroscope
+        return "°/s";
+    default:
+        return "";
     }
 }
 
@@ -453,6 +548,38 @@ String BTHomeDecoder::getObjectName(uint8_t objID)
         return "text";
     case 0x54:
         return "raw";
+    case 0x55:
+        return "volume_storage";
+    case 0x56:
+        return "conductivity";
+    case 0x57:
+    case 0x58:
+        return "temperature";
+    case 0x59:
+    case 0x5A:
+    case 0x5B:
+        return "count";
+    case 0x5C:
+        return "power";
+    case 0x5D:
+        return "current";
+    case 0x5E:
+        return "direction";
+    case 0x5F:
+        return "precipitation";
+    case 0x60:
+        return "channel";
+    case 0x61:
+        return "rotational_speed";
+    case 0x62:
+        return "speed";
+    case 0x63:
+        return "acceleration";
+    case 0xF0:
+        return "device_type_id";
+    case 0xF1:
+    case 0xF2:
+        return "firmware_version";
     default:
         return "unknown";
     }

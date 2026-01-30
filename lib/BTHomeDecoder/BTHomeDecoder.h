@@ -13,6 +13,7 @@ struct BTHomeMeasurement {
     float value;
     String name;
     bool isValid;
+    String unit;
 };
 
 struct BTHomeDecodeResult {
@@ -50,6 +51,8 @@ private:
     bool hasLengthByte(uint8_t objID);
     int    getObjectDataLength(uint8_t objID);
     float  getObjectFactor(uint8_t objID);
+    bool   getObjectSignedNess(uint8_t objID);
+    String getObjectUnit(uint8_t objID);
     String getObjectName(uint8_t objID);
 
     float  parseSignedLittle(const uint8_t* data, size_t len, float factor);
