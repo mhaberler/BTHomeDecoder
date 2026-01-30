@@ -265,12 +265,18 @@ int BTHomeDecoder::getObjectDataLength(uint8_t objID)
 {
     switch (objID)
     {
+    case 0x00: // packet id
+        return 1;
+    case 0x01: // battery percentage (1 byte)
+        return 1;
     case 0x02:
     case 0x03:
     case 0x08:
+    case 0x0C: // battery voltage (2 bytes)
     case 0x12:
     case 0x13:
     case 0x14:
+    case 0x3C:
     case 0x40:
     case 0x41:
     case 0x43:
@@ -288,12 +294,17 @@ int BTHomeDecoder::getObjectDataLength(uint8_t objID)
     case 0x5F:
         return 2;
     case 0x04:
+    case 0x05: // illuminance (3 bytes)
     case 0x0A:
     case 0x0B:
     case 0x42:
     case 0x49:
     case 0x4B:
         return 3;
+    case 0x2E: // humidity (1 byte)
+    case 0x2F: // soil moisture (1 byte)
+    case 0x3A: // button
+        return 1;
     case 0x3E:
     case 0x4C:
     case 0x4D:
@@ -303,22 +314,6 @@ int BTHomeDecoder::getObjectDataLength(uint8_t objID)
     case 0x5B:
     case 0x5C:
         return 4;
-    case 0x3C:
-        return 2;
-    case 0x2E: // humidity (1 byte)
-        return 1;
-    case 0x05: // illuminance (3 bytes)
-        return 3;
-    case 0x0C: // battery voltage (2 bytes)
-        return 2;
-    case 0x2F: // soil moisture (1 byte)
-        return 1;
-    case 0x01: // battery percentage (1 byte)
-        return 1;
-    case 0x3A: // button
-        return 1;
-    case 0x00: // packet id
-        return 1;
     default:
         return -1;
     }
@@ -398,22 +393,32 @@ String BTHomeDecoder::getObjectName(uint8_t objID)
     {
     case 0x00:
         return "packet_id";
+    case 0x01:
+        return "battery_percent";
     case 0x02:
         return "temperature";
     case 0x03:
         return "humidity";
     case 0x04:
         return "pressure";
+    case 0x05:
+        return "illuminance";
     case 0x0A:
         return "energy";
     case 0x0B:
         return "power";
+    case 0x0C:
+        return "battery_voltage";
     case 0x12:
         return "CO2";
     case 0x13:
         return "VOC";
     case 0x14:
         return "moisture";
+    case 0x2E:
+        return "humidity";
+    case 0x2F:
+        return "soil_moisture";
     case 0x3A:
         return "button";
     case 0x3C:
@@ -444,20 +449,10 @@ String BTHomeDecoder::getObjectName(uint8_t objID)
         return "gas_m3";
     case 0x50:
         return "timestamp";
-    case 0x2E:
-        return "humidity";
-    case 0x05:
-        return "illuminance";
-    case 0x0C:
-        return "battery_voltage";
-    case 0x2F:
-        return "soil_moisture";
-    case 0x01:
-        return "battery_percent";
-    case 0x54:
-        return "raw";
     case 0x53:
         return "text";
+    case 0x54:
+        return "raw";
     default:
         return "unknown";
     }
