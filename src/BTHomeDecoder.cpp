@@ -131,7 +131,7 @@ BTHomeDecodeResult BTHomeDecoder::parseBTHomeV2(
         }
         log_v("DEBUG: objectID=0x%02X dataLen=%d", objID, dataLen);
         if (dataLen < 0) {
-            log_d("DEBUG: Unknown objectID => stopping parse");
+            log_d("DEBUG: Unknown objectID 0x%02X => stopping parse", objID);
             break;
         }
         if (idx + dataLen > payload.size()) {
@@ -309,6 +309,7 @@ int BTHomeDecoder::getObjectDataLength(uint8_t objID) {
         case 0x3A: // button
         case 0x57: // temperature (sint8)
         case 0x58: // temperature (sint8, factor 0.35)
+        case 0x65: // settings_revision
             return 1;
         case 0x3E:
         case 0x4C:
@@ -638,6 +639,8 @@ String BTHomeDecoder::getObjectName(uint8_t objID) {
             return "speed";
         case 0x63:
             return "acceleration";
+        case 0x65:
+            return "settings_revision";
         case 0xF0:
             return "device_type_id";
         case 0xF1:
